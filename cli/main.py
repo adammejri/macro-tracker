@@ -51,16 +51,24 @@ def menu_past_days():
             print(f"{i}. {row['date']}")
         print("\nType a number, a date (YYYY-MM-DD), 'where', or 'exit'.")
 
-        choice = input("\n> ").strip().lower()
+        choice = input("\n> ").strip()
+        choice_lower = choice.lower()
 
-        result = state.check_global(choice)
+        result = state.check_global(choice_lower)
         if result == "commands":
-            print("Commands: number, YYYY-MM-DD date, 'where', 'exit'")
+            print("Commands: number, YYYY-MM-DD date, 'where', 'back to main', 'exit'")
             continue
         elif result:
             continue
 
-        if choice == "exit":
+        choice = choice_lower
+
+        if choice == "back to main":
+            state.pop()
+            print("Returning to main menu.")
+            break
+
+        elif choice == "exit":
             state.pop()
             break
 
@@ -95,15 +103,23 @@ def menu_day_detail(date, new_day=False):
         print("4. Exit")
 
         choice = input("\n> ").strip()
+        choice_lower = choice.lower()
 
         result = state.check_global(choice)
         if result == "commands":
-            print("Commands: 1-4, 'where'")
+            print("Commands: 1-4, 'where', 'back to main'")
             continue
         elif result:
             continue
-
-        if choice == "1":
+        
+        if choice_lower == "back to main":
+            state.pop()
+            print("Returning to main menu.")
+            break
+        elif choice_lower == "exit":
+            state.pop()
+            break
+        elif choice == "1":
             state.push("Meal Logger")
             run_meal_cli(date)
             state.pop()
@@ -139,6 +155,7 @@ def main():
         print("5. Exit")
 
         choice = input("\n> ").strip()
+        choice_lower = choice.lower()
 
         result = state.check_global(choice)
         if result == "commands":

@@ -1,7 +1,7 @@
 from core.meal_service import add_food_to_meal, remove_meal, remove_food, get_meal_summary, get_daily_totals
 from core.nutrition_service import find_foods
-from db.activity_repo import get_targets_for_date, get_meals_for_date
-from db.meal_repo import get_foods_in_meal
+from db.activity_repo import get_targets_for_date
+from db.meal_repo import get_foods_in_meal, get_meals_for_date
 import cli.state as state
 
 COMMANDS = {
