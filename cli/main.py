@@ -163,8 +163,11 @@ def main():
             continue
         elif result:
             continue
-
-        if choice == "1":
+        
+        if choice_lower == "exit":
+            print("Goodbye!")
+            break
+        elif choice == "1":
             state.push("Meal Logger")
             run_meal_cli(today)
             state.pop()
