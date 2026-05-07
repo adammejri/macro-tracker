@@ -1,32 +1,17 @@
 from datetime import date as today_date
-import state 
-from meal_logger import run_meal_logger, print_summary, get_daily_totals, get_targets_for_date
-from activity_logger import run_activity_logger, get_activities
-from db import get_logs_db
-
-# ─── HELPERS ──────────────────────────────────────────────────────────────────
-
-def get_all_logged_dates():
-    with get_logs_db() as conn:
-        return conn.execute("""
-            SELECT DISTINCT date FROM daily_info ORDER BY date DESC
-        """).fetchall()
-
-def date_exists(date):
-    with get_logs_db() as conn:
-        row = conn.execute(
-            "SELECT date FROM daily_info WHERE date = ?", (date,)
-        ).fetchone()
-        return row is not None
+from cli.meal_cli import run_meal_cli, print_summary
+from cli.activity_cli import run_activity_cli
+from core.summary_service import get_full_day_summary, get_all_dates, date_has_data
+from db.activity_repo import get_daily_info
+from core.activity_service import get_activities
+import cli.state as state
 
 def print_day_summary(date):
+    summary = get_full_day_summary(date)
+
     print(f"\n=== Summary for {date} ===")
 
-    with get_logs_db() as conn:
-        info = conn.execute(
-            "SELECT * FROM daily_info WHERE date = ?", (date,)
-        ).fetchone()
-
+    info = summary["info"]
     if info:
         print(f"\nWeight:  {info['weight']} kg")
         print(f"Steps:   {info['steps']}")
@@ -38,111 +23,131 @@ def print_day_summary(date):
         print(f"  Carbs:    {info['carbs_target']}g")
         print(f"  Fat:      {info['fat_target']}g")
 
-    activities = get_activities(date)
+    activities = summary["activities"]
     if activities:
         print(f"\nActivities:")
         for act in activities:
             if act["distance_km"]:
-                print(f"  {act['activity_type']}: {act['distance_km']} km — {act['calories_burned']} kcal")
+                print(f"  {act['activity_type']}: {act['distance_km']} km "
+                      f"— {act['calories_burned']} kcal")
             else:
-                print(f"  {act['activity_type']}: {act['duration_minutes']} min — {act['calories_burned']} kcal")
+                print(f"  {act['activity_type']}: {act['duration_minutes']} min "
+                      f"— {act['calories_burned']} kcal")
 
     print_summary(date)
 
-# ─── SUBMENUS ─────────────────────────────────────────────────────────────────
-
-def menu_log_meals(date):
-    run_meal_logger(date=date)
-
-def menu_log_activities(date):
-    run_activity_logger(date=date)
-
 def menu_past_days():
+    state.push("Past Days")
     while True:
-        print("\n--- Recorded Days ---")
-        dates = get_all_logged_dates()
+        print(f"\n[{state.where()}]")
+        dates = get_all_dates()
 
         if not dates:
             print("No recorded days found.")
+            state.pop()
             return
 
         for i, row in enumerate(dates, 1):
             print(f"{i}. {row['date']}")
-        print("Type a number to view a day, enter a date (YYYY-MM-DD) to look up, or 'exit'.")
+        print("\nType a number, a date (YYYY-MM-DD), 'where', or 'exit'.")
 
-        choice = input("\n> ").strip().lower()
+        choice = input("\n> ").strip()
+        choice_lower = choice.lower()
 
-        if state.check_global(choice):
+        result = state.check_global(choice_lower)
+        if result == "commands":
+            print("Commands: number, YYYY-MM-DD date, 'where', 'back to main', 'exit'")
             continue
-        
+        elif result:
+            continue
+
+        choice = choice_lower
+
+        if choice == "back to main":
+            state.pop()
+            print("Returning to main menu.")
+            break
+
         elif choice == "exit":
+            state.pop()
             break
 
         elif choice.isdigit() and 1 <= int(choice) <= len(dates):
             selected_date = dates[int(choice) - 1]["date"]
-            state.push(f"Day:{selected_date}")
             menu_day_detail(selected_date)
-            state.pop()
 
         else:
             try:
                 from datetime import datetime
                 datetime.strptime(choice, "%Y-%m-%d")
-                if date_exists(choice):
+                if date_has_data(choice):
                     menu_day_detail(choice)
                 else:
                     print(f"No data found for {choice}.")
-                    create = input("Would you like to log data for this day? (yes/no): ").strip().lower()
+                    create = input("Log data for this day? (yes/no): ").strip().lower()
                     if create == "yes":
                         menu_day_detail(choice, new_day=True)
             except ValueError:
-                print("Invalid input. Use a number or date format YYYY-MM-DD.")
+                print("Invalid input. Use a number or YYYY-MM-DD.")
 
 def menu_day_detail(date, new_day=False):
     if new_day:
         print(f"\nCreating new entry for {date}.")
 
+    state.push(f"Day:{date}")
     while True:
-        print(f"\n--- {date} ---")
+        print(f"\n[{state.where()}]")
         print("1. Log meals")
         print("2. Log activities")
         print("3. View summary")
         print("4. Exit")
 
         choice = input("\n> ").strip()
+        choice_lower = choice.lower()
 
-        if state.check_global(choice):
+        result = state.check_global(choice)
+        if result == "commands":
+            print("Commands: 1-4, 'where', 'back to main'")
             continue
+        elif result:
+            continue
+        
+        if choice_lower == "back to main":
+            state.pop()
+            print("Returning to main menu.")
+            break
+        elif choice_lower == "exit":
+            state.pop()
+            break
         elif choice == "1":
             state.push("Meal Logger")
-            menu_log_meals(date)
+            run_meal_cli(date)
             state.pop()
         elif choice == "2":
             state.push("Activity Logger")
-            menu_log_activities(date)
+            run_activity_cli(date)
             state.pop()
         elif choice == "3":
             print_day_summary(date)
         elif choice == "4":
+            state.pop()
             break
         else:
             print("Invalid choice.")
 
-# ─── MAIN MENU ────────────────────────────────────────────────────────────────
-
 def main():
     state.reset()
     state.push("Main Menu")
-
     today = str(today_date.today())
 
     print("=" * 40)
     print("       MACRO & ACTIVITY TRACKER")
     print("=" * 40)
     print(f"Today: {today}")
+    print("Type 'commands' to see available options.")
 
     while True:
-        print("\n--- Main Menu ---")
+        print(f"\n[{state.where()}]")
         print("1. Log meals")
         print("2. Log activities & calculate TDEE")
         print("3. View past days")
@@ -150,21 +155,28 @@ def main():
         print("5. Exit")
 
         choice = input("\n> ").strip()
-        
-        if state.check_global(choice):
+        choice_lower = choice.lower()
+
+        result = state.check_global(choice)
+        if result == "commands":
+            print("\nCommands: 1-5, 'where', 'commands'")
             continue
+        elif result:
+            continue
+        
+        if choice_lower == "exit":
+            print("Goodbye!")
+            break
         elif choice == "1":
             state.push("Meal Logger")
-            menu_log_meals(today)
+            run_meal_cli(today)
             state.pop()
         elif choice == "2":
             state.push("Activity Logger")
-            menu_log_activities(today)
+            run_activity_cli(today)
             state.pop()
         elif choice == "3":
-            state.push("Past Days")
             menu_past_days()
-            state.pop()
         elif choice == "4":
             print_day_summary(today)
         elif choice == "5":

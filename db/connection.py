@@ -1,8 +1,8 @@
 import sqlite3
-from contextlib import contextmanager
 import os
+from contextlib import contextmanager
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NUTRITION_DB = os.path.join(BASE_DIR, "databases", "nutrition.db")
 LOGS_DB = os.path.join(BASE_DIR, "databases", "logs.db")
 
