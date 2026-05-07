@@ -1,0 +1,17 @@
+cat > .gitignore << EOF
+# Databases
+databases/
+*.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Mac
+.DS_Store
+
+# Old files
+old/
+EOF
